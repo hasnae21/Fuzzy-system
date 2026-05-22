@@ -742,11 +742,11 @@ class SimulationEngine:
             tx, ty = self.track.get_tangent(bot.t)
             bot.angle = math.atan2(ty, tx)
 
-    def _sense(self, bot: RobotState) -> Tuple[float, float]:
+    def _sense(self, bot: RobotState) -> Tuple[float, float, List[bool]]:
         """
         Mesure l'erreur latérale et la courbure via 7 capteurs IR virtuels.
 
-        Retourne: (error, curvature)
+        Retourne: (error, curvature, sensor_states)
         """
         # Trouver le point le plus proche sur la piste
         best_t, best_d = bot.t, float('inf')
@@ -765,7 +765,7 @@ class SimulationEngine:
         # Courbure locale
         curvature = self.track.get_curvature(best_t)
 
-        return error, curvature
+        return error, curvature, sensor_states
 
     def _advance(self, bot: RobotState, steer: float, speed: float):
         """Met à jour la position du robot (modèle cinématique simple)"""
@@ -780,7 +780,7 @@ class SimulationEngine:
         bot = self.state_fuzzy
 
         # Capteurs
-        error, curvature = self._sense(bot)
+        error, curvature, sensor_states = self._sense(bot)
         rate = (error - bot.error) / self.DT if bot.steps > 0 else 0.0
         bot.error = error
         bot.error_rate = max(-2.0, min(2.0, rate))
@@ -819,6 +819,7 @@ class SimulationEngine:
             'fuzzy_output': fuzzy_out,
             'transformer': pred,
             'curvature': curvature,
+            'ir_sensors': sensor_states,
         }
 
     def step_pid(self, params: Dict = None) -> Dict:
@@ -828,7 +829,7 @@ class SimulationEngine:
         if params:
             self.pid.update_params(**params)
 
-        error, curvature = self._sense(bot)
+        error, curvature, sensor_states = self._sense(bot)
         bot.error = error
 
         pid_out = self.pid.compute(error)
@@ -844,7 +845,7 @@ class SimulationEngine:
         if bot.t < 0.01 and bot.steps > 100:
             bot.laps += 1
 
-        return {**asdict(bot), 'pid_output': pid_out, 'curvature': curvature}
+        return {**asdict(bot), 'pid_output': pid_out, 'curvature': curvature, 'ir_sensors': sensor_states}
 
     def reset(self):
         """Réinitialise les deux robots"""
@@ -905,6 +906,18 @@ def api_memberships():
             'PL': [fs.error_PL(v) for v in xe],
             'current': e,
         }
+    })
+
+
+@app.route('/api/ir_sensors', methods=['GET'])
+def api_ir_sensors():
+    """Retourne les informations sur les 7 capteurs IR virtuels"""
+    return jsonify({
+        'num_sensors': sim.ir_sensors.NUM_SENSORS,
+        'positions': sim.ir_sensors.positions.tolist(),
+        'weights': sim.ir_sensors.weights.tolist(),
+        'spacing': sim.ir_sensors.SENSOR_SPACING,
+        'threshold': sim.ir_sensors.DETECTION_THRESHOLD,
     })
 
 
