@@ -8,7 +8,8 @@ Simulation comparative d'un robot suiveur de ligne sur autodrome, opposant un co
 
 ```
 line_follower/
-├── backend.py      ← Serveur Flask (Python) — moteur de simulation
+├── Python
+    └── backend.py      ← Serveur Flask (Python) — moteur de simulation
 └── index.html      ← Interface web — visualisation temps réel
 ```
 
